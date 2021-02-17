@@ -1,0 +1,287 @@
+Total: 1381 samples
+    1375  99.6%  99.6%     1381 100.0% thread_tasks
+       2   0.1%  99.7%        2   0.1% ?? /usr/src/debug////////glibc-2.17-c758a686/string/../sysdeps/x86_64/multiarch/strcmp-sse42.S:161
+       1   0.1%  99.8%        1   0.1% ?? /usr/src/debug////////glibc-2.17-c758a686/string/../sysdeps/x86_64/multiarch/strcmp-sse42.S:203
+       1   0.1%  99.9%        1   0.1% ?? /usr/src/debug////////glibc-2.17-c758a686/string/../sysdeps/x86_64/multiarch/strcmp-sse42.S:211
+       1   0.1%  99.9%        1   0.1% ?? /usr/src/debug////////glibc-2.17-c758a686/string/../sysdeps/x86_64/multiarch/strcmp-sse42.S:1734
+       1   0.1% 100.0%        6   0.4% SortedList_lookup
+       0   0.0% 100.0%     1381 100.0% ?? /usr/src/debug////////glibc-2.17-c758a686/misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:118
+       0   0.0% 100.0%     1381 100.0% start_thread
+ROUTINE ====================== thread_tasks in /u/cs/ugrad/burton/lab2b/lab2_list.c
+  1375   1381 Total samples (flat / cumulative)
+     .      .   45:     if (num_thread != NULL) {
+     .      .   46:         free(num_thread);
+     .      .   47:     }
+     .      .   48: }
+     .      .   49: 
+---
+     .      .   50: void* thread_tasks(void *num_thread) {
+     .      .   51:     int n_thread = *((int*)num_thread);
+     .      .   52:     int base_index = n_thread;
+     .      .   53: 
+     .      .   54:     //insert
+     .      .   55:     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
+     .      .   56:         switch(opt_sync) {
+     .      .   57:             case 0:  //no sync option given
+     .      .   58:                 SortedList_insert(head, &pool[i]);
+     .      .   59:                 break;
+     .      .   60:             case 'm': //mutex
+     .      .   61:                 if (pthread_mutex_lock(&protect) != 0) {
+     .      .   62:                     fprintf(stderr, "Error locking mutex\n");
+     .      .   63:                     exit(1);
+     .      .   64:                 }
+     .      .   65:                 SortedList_insert(head, &pool[i]);
+     .      .   66:                 if (pthread_mutex_unlock(&protect) != 0) {
+     .      .   67:                     fprintf(stderr, "Error unlocking mutex\n");
+     .      .   68:                     exit(1);
+     .      .   69:                 }
+     .      .   70:                 break;
+     .      .   71:             case 's':  //spinlock
+   830    830   72:                 while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      .   73:                 SortedList_insert(head, &pool[i]);
+     .      .   74:                 __sync_lock_release(&spin_lock);
+     .      .   75:                 break;
+     .      .   76:             default: 
+     .      .   77:                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .   78:                 exit(1);
+     .      .   79:                 break;
+     .      .   80:         }   
+     .      .   81:     }
+     .      .   82: 
+     .      .   83:     //check length
+     .      .   84:     switch(opt_sync) {
+     .      .   85:         case 0:  //no sync option given
+     .      .   86:             if (SortedList_length(head) < 0) {
+     .      .   87:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .   88:                 exit(2);
+     .      .   89:             }
+     .      .   90:             break;
+     .      .   91:         case 'm': //mutex
+     .      .   92:             if (pthread_mutex_lock(&protect) != 0) {
+     .      .   93:                 fprintf(stderr, "Error locking mutex\n");
+     .      .   94:                 exit(1);
+     .      .   95:             }
+     .      .   96:             if (SortedList_length(head) < 0) {
+     .      .   97:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .   98:                 exit(2);
+     .      .   99:             }
+     .      .  100:             if (pthread_mutex_unlock(&protect) != 0) {
+     .      .  101:                 fprintf(stderr, "Error unlocking mutex\n");
+     .      .  102:                 exit(1);
+     .      .  103:             }
+     .      .  104:             break;
+     .      .  105:         case 's':  //spinlock
+     1      1  106:             while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  107:             if (SortedList_length(head) < 0) {
+     .      .  108:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .  109:                 exit(2);
+     .      .  110:             }
+     .      .  111:             __sync_lock_release(&spin_lock);
+     .      .  112:             break;
+     .      .  113:         default: 
+     .      .  114:             fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .  115:             exit(1);
+     .      .  116:             break;
+     .      .  117:     }
+     .      .  118: 
+     .      .  119:     //lookup, remove
+     .      .  120:     SortedListElement_t* kill;
+     .      .  121:     int stop = base_index + iterations;
+     .      .  122:     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
+     .      .  123:         switch(opt_sync) {
+     .      .  124:             case 0:  //no sync option given
+     .      .  125:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  126:                 if (kill == NULL) {
+     .      .  127:                     fprintf(stderr, "Error looking up node for deletion, key is:%d, i is: %d, stop point is:%d, threads:%d, iterations:%d\n", *pool[i].key, i, stop, thread_num, iterations);
+     .      .  128:                     exit(2);
+     .      .  129:                 }
+     .      .  130:                 if (SortedList_delete(kill) == 1) {
+     .      .  131:                     fprintf(stderr, "Error deleting node, key is:%d, i is: %d, stop point is: %d, threads:%d, iterations:%d\n", *pool[i].key, i, stop, thread_num, iterations);
+     .      .  132:                     exit(2);
+     .      .  133:                 }
+     .      .  134:                 break;
+     .      .  135:             case 'm': //mutex
+     .      .  136:                 if (pthread_mutex_lock(&protect) != 0) {
+     .      .  137:                     fprintf(stderr, "Error locking mutex\n");
+     .      .  138:                     exit(1);
+     .      .  139:                 }
+     .      .  140:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  141:                 if (kill == NULL) {
+     .      .  142:                     fprintf(stderr, "Error looking up node for deletion\n");
+     .      .  143:                     exit(2);
+     .      .  144:                 }
+     .      .  145:                 if (SortedList_delete(kill) == 1) {
+     .      .  146:                     fprintf(stderr, "Error deleting node\n");
+     .      .  147:                     exit(2);
+     .      .  148:                 }
+     .      .  149:                 if (pthread_mutex_unlock(&protect) != 0) {
+     .      .  150:                     fprintf(stderr, "Error unlocking mutex\n");
+     .      .  151:                     exit(1);
+     .      .  152:                 }
+     .      .  153:                 break;
+     .      .  154:             case 's':  //spinlock
+   544    544  155:                 while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      6  156:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  157:                 if (kill == NULL) {
+     .      .  158:                     fprintf(stderr, "Error looking up node for deletion\n");
+     .      .  159:                     exit(2);
+     .      .  160:                 }
+     .      .  161:                 if (SortedList_delete(kill) == 1) {
+     .      .  162:                     fprintf(stderr, "Error deleting node\n");
+     .      .  163:                     exit(2);
+     .      .  164:                 }
+     .      .  165:                 __sync_lock_release(&spin_lock);
+     .      .  166:                 break;
+     .      .  167:             default: 
+     .      .  168:                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .  169:                 exit(1);
+     .      .  170:                 break;
+     .      .  171:         }
+     .      .  172:     }
+     .      .  173:     return NULL;
+     .      .  174: }
+---
+     .      .  175: 
+     .      .  176: int main(int argc, char *argv[]) {
+     .      .  177:     int c;
+     .      .  178: 
+     .      .  179:     while(1) {
+ROUTINE ====================== thread_tasks in /u/cs/ugrad/burton/lab2b/lab2_list.c
+  1375   1381 Total samples (flat / cumulative)
+     .      .   45:     if (num_thread != NULL) {
+     .      .   46:         free(num_thread);
+     .      .   47:     }
+     .      .   48: }
+     .      .   49: 
+---
+     .      .   50: void* thread_tasks(void *num_thread) {
+     .      .   51:     int n_thread = *((int*)num_thread);
+     .      .   52:     int base_index = n_thread;
+     .      .   53: 
+     .      .   54:     //insert
+     .      .   55:     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
+     .      .   56:         switch(opt_sync) {
+     .      .   57:             case 0:  //no sync option given
+     .      .   58:                 SortedList_insert(head, &pool[i]);
+     .      .   59:                 break;
+     .      .   60:             case 'm': //mutex
+     .      .   61:                 if (pthread_mutex_lock(&protect) != 0) {
+     .      .   62:                     fprintf(stderr, "Error locking mutex\n");
+     .      .   63:                     exit(1);
+     .      .   64:                 }
+     .      .   65:                 SortedList_insert(head, &pool[i]);
+     .      .   66:                 if (pthread_mutex_unlock(&protect) != 0) {
+     .      .   67:                     fprintf(stderr, "Error unlocking mutex\n");
+     .      .   68:                     exit(1);
+     .      .   69:                 }
+     .      .   70:                 break;
+     .      .   71:             case 's':  //spinlock
+   830    830   72:                 while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      .   73:                 SortedList_insert(head, &pool[i]);
+     .      .   74:                 __sync_lock_release(&spin_lock);
+     .      .   75:                 break;
+     .      .   76:             default: 
+     .      .   77:                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .   78:                 exit(1);
+     .      .   79:                 break;
+     .      .   80:         }   
+     .      .   81:     }
+     .      .   82: 
+     .      .   83:     //check length
+     .      .   84:     switch(opt_sync) {
+     .      .   85:         case 0:  //no sync option given
+     .      .   86:             if (SortedList_length(head) < 0) {
+     .      .   87:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .   88:                 exit(2);
+     .      .   89:             }
+     .      .   90:             break;
+     .      .   91:         case 'm': //mutex
+     .      .   92:             if (pthread_mutex_lock(&protect) != 0) {
+     .      .   93:                 fprintf(stderr, "Error locking mutex\n");
+     .      .   94:                 exit(1);
+     .      .   95:             }
+     .      .   96:             if (SortedList_length(head) < 0) {
+     .      .   97:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .   98:                 exit(2);
+     .      .   99:             }
+     .      .  100:             if (pthread_mutex_unlock(&protect) != 0) {
+     .      .  101:                 fprintf(stderr, "Error unlocking mutex\n");
+     .      .  102:                 exit(1);
+     .      .  103:             }
+     .      .  104:             break;
+     .      .  105:         case 's':  //spinlock
+     1      1  106:             while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  107:             if (SortedList_length(head) < 0) {
+     .      .  108:                 fprintf(stderr, "Error: List is corrupted\n");
+     .      .  109:                 exit(2);
+     .      .  110:             }
+     .      .  111:             __sync_lock_release(&spin_lock);
+     .      .  112:             break;
+     .      .  113:         default: 
+     .      .  114:             fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .  115:             exit(1);
+     .      .  116:             break;
+     .      .  117:     }
+     .      .  118: 
+     .      .  119:     //lookup, remove
+     .      .  120:     SortedListElement_t* kill;
+     .      .  121:     int stop = base_index + iterations;
+     .      .  122:     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
+     .      .  123:         switch(opt_sync) {
+     .      .  124:             case 0:  //no sync option given
+     .      .  125:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  126:                 if (kill == NULL) {
+     .      .  127:                     fprintf(stderr, "Error looking up node for deletion, key is:%d, i is: %d, stop point is:%d, threads:%d, iterations:%d\n", *pool[i].key, i, stop, thread_num, iterations);
+     .      .  128:                     exit(2);
+     .      .  129:                 }
+     .      .  130:                 if (SortedList_delete(kill) == 1) {
+     .      .  131:                     fprintf(stderr, "Error deleting node, key is:%d, i is: %d, stop point is: %d, threads:%d, iterations:%d\n", *pool[i].key, i, stop, thread_num, iterations);
+     .      .  132:                     exit(2);
+     .      .  133:                 }
+     .      .  134:                 break;
+     .      .  135:             case 'm': //mutex
+     .      .  136:                 if (pthread_mutex_lock(&protect) != 0) {
+     .      .  137:                     fprintf(stderr, "Error locking mutex\n");
+     .      .  138:                     exit(1);
+     .      .  139:                 }
+     .      .  140:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  141:                 if (kill == NULL) {
+     .      .  142:                     fprintf(stderr, "Error looking up node for deletion\n");
+     .      .  143:                     exit(2);
+     .      .  144:                 }
+     .      .  145:                 if (SortedList_delete(kill) == 1) {
+     .      .  146:                     fprintf(stderr, "Error deleting node\n");
+     .      .  147:                     exit(2);
+     .      .  148:                 }
+     .      .  149:                 if (pthread_mutex_unlock(&protect) != 0) {
+     .      .  150:                     fprintf(stderr, "Error unlocking mutex\n");
+     .      .  151:                     exit(1);
+     .      .  152:                 }
+     .      .  153:                 break;
+     .      .  154:             case 's':  //spinlock
+   544    544  155:                 while (__sync_lock_test_and_set(&spin_lock, 1));
+     .      6  156:                 kill = SortedList_lookup(head, pool[i].key);
+     .      .  157:                 if (kill == NULL) {
+     .      .  158:                     fprintf(stderr, "Error looking up node for deletion\n");
+     .      .  159:                     exit(2);
+     .      .  160:                 }
+     .      .  161:                 if (SortedList_delete(kill) == 1) {
+     .      .  162:                     fprintf(stderr, "Error deleting node\n");
+     .      .  163:                     exit(2);
+     .      .  164:                 }
+     .      .  165:                 __sync_lock_release(&spin_lock);
+     .      .  166:                 break;
+     .      .  167:             default: 
+     .      .  168:                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
+     .      .  169:                 exit(1);
+     .      .  170:                 break;
+     .      .  171:         }
+     .      .  172:     }
+     .      .  173:     return NULL;
+     .      .  174: }
+---
+     .      .  175: 
+     .      .  176: int main(int argc, char *argv[]) {
+     .      .  177:     int c;
+     .      .  178: 
+     .      .  179:     while(1) {

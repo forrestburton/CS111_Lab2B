@@ -23,6 +23,7 @@ int opt_yield = 0;
 pthread_mutex_t protect;
 long spin_lock = 0;
 int* num_thread = NULL;
+int list_num = 1;
 SortedListElement_t *head = NULL;
 SortedListElement_t *pool = NULL;
 
@@ -360,7 +361,6 @@ int main(int argc, char *argv[]) {
             break;
     }
 
-    fprintf(stdout, "%s,%d,%d,1,%ld,%lu,%ld\n", output, thread_num, iterations, ops, total_time_nsec, avg_time_per_op);
-
+    fprintf(stdout, "%s,%d,%d,%d,%ld,%lu,%ld\n", output, thread_num, iterations, list_num, ops, total_time_nsec, avg_time_per_op);
     exit(0);
 }
