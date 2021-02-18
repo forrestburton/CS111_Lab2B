@@ -85,7 +85,7 @@ void* thread_tasks(void *num_thread) {
                     exit(1);
                 }
 
-                acquisition_time[n_thread] += get_time(&start_time, &end_time);
+                mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
                 SortedList_insert(head, &pool[i]);
                 if (pthread_mutex_unlock(&protect) != 0) {
@@ -126,7 +126,7 @@ void* thread_tasks(void *num_thread) {
                 fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
                 exit(1);
             }
-            acquisition_time[n_thread] += get_time(&start_time, &end_time);
+            mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
             if (SortedList_length(head) < 0) {
                 fprintf(stderr, "Error: List is corrupted\n");
@@ -181,7 +181,7 @@ void* thread_tasks(void *num_thread) {
                     exit(1);
                 }
 
-                acquisition_time[n_thread] += get_time(&start_time, &end_time);
+                mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
                 kill = SortedList_lookup(head, pool[i].key);
                 if (kill == NULL) {

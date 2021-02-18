@@ -33,9 +33,19 @@ competition for shared recources. As a result, each individual thread spends mor
 QUESTION 2.3.3 - Mutex Wait Time:
 Look at the average time per operation (vs. # threads) and the average wait-for-mutex time (vs. #threads).
 Why does the average lock-wait time rise so dramatically with the number of contending threads?
-Why does the completion time per operation rise (less dramatically) with the number of contending threads?
-How is it possible for the wait time per operation to go up faster (or higher) than the completion time per operation?
+The average lock-wait time rises dramatically with the number of threads because more threads are competeting for shared recources
+and therefore threads spend more time waiting for the mutex to unlock. 
 
+Why does the completion time per operation rise (less dramatically) with the number of contending threads?
+Completion time per operatiion rises less dramatically as the number of contending threads increases because even when there is increased
+contention, there are still operations being done on the linked list by the thread that is currently working. Basically the increased 
+contention does not really affect the work being done on linked lists at a given time. 
+
+How is it possible for the wait time per operation to go up faster (or higher) than the completion time per operation?
+It is possible for the wait time per operation to go up faster than the completion time per operation because the list operations done by 
+a given thread is not generally affected by the number of threads increasing. On the other hand, when the number of threads increases
+this increases the wait time for each thread and therefore makes the wait time per operation to increase higher than the completion time
+per operation.
 
 QUESTION 2.3.4 - Performance of Partitioned Lists
 Explain the change in performance of the synchronized methods as a function of the number of lists.
@@ -60,3 +70,4 @@ lab2b_list.gp: script which generates the .png graphs from parsing lab2_list.csv
 Recourses:
 **Discussion 1B very helpful
 Mutex Locks - https://mortoray.com/2019/02/20/how-does-a-mutex-work-what-does-it-cost/
+Malloc vs calloc - https://stackoverflow.com/questions/1538420/difference-between-malloc-and-calloc
