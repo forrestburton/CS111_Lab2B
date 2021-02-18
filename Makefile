@@ -8,6 +8,7 @@ default:
 tests: default
 	rm -f lab2_list.csv   
 	
+	#Graph 1 and 2
 	./lab2_list --threads=1 --iterations=1000 --sync=m >>lab2b_list.csv
 	./lab2_list --threads=2 --iterations=1000 --sync=m >>lab2b_list.csv 
 	./lab2_list --threads=4 --iterations=1000 --sync=m >>lab2b_list.csv 
@@ -23,6 +24,8 @@ tests: default
 	./lab2_list --threads=12 --iterations=1000 --sync=s >>lab2b_list.csv 
 	./lab2_list --threads=16 --iterations=1000 --sync=s >>lab2b_list.csv 
 	./lab2_list --threads=24 --iterations=1000 --sync=s >>lab2b_list.csv  
+
+	
 
 profile: default
 	-rm -f ./raw.gperf profile.out
