@@ -23,8 +23,12 @@ rate with the high-thread mutex tests.
 
 QUESTION 2.3.2 - Execution Profiling:
 Where (what lines of code) are consuming most of the cycles when the spin-lock version of the list exerciser is run with a large number of threads?
-Why does this operation become so expensive with large numbers of threads?
+The lines which are most time consuming are the lines in my thread_tasks function under the spin lock case where the threads are waiting to
+obtain the lock before calling the inserting and deleting list functions. 
 
+Why does this operation become so expensive with large numbers of threads?
+These operations become expensive with a large number of threads because as the number of threads increases, that leads to increased 
+competition for shared recources. As a result, each individual thread spends more time spinning and waiting for the lock to be unlocked.
 
 QUESTION 2.3.3 - Mutex Wait Time:
 Look at the average time per operation (vs. # threads) and the average wait-for-mutex time (vs. #threads).

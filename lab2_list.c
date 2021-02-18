@@ -24,12 +24,20 @@ pthread_mutex_t protect;
 long spin_lock = 0;
 int* num_thread = NULL;
 int list_num = 1;
+long long acquisition_time = 0;
+long* mutex_wait_time = NULL;
 SortedListElement_t *head = NULL;
 SortedListElement_t *pool = NULL;
 
 void catch_seg_fault() {
     fprintf(stderr, "Signal: Caught seg fault \n");
     exit(2);
+}
+
+unsigned long get_time(struct timespec* start_time, struct timespec* end_time) {
+    long nsec = end_time->tv_nsec - start_time->tv_nsec;
+    time_t sec = end_time->tv_sec - start_time->tv_sec;
+    return (sec*1000000000 + nsec);
 }
 
 void free_memory(void) {
@@ -45,11 +53,17 @@ void free_memory(void) {
     if (num_thread != NULL) {
         free(num_thread);
     }
+
+    if (mutex_wait_time != NULL) {
+        free(mutex_wait_time);
+    }
 }
 
 void* thread_tasks(void *num_thread) {
     int n_thread = *((int*)num_thread);
     int base_index = n_thread;
+    struct timespec start_time; //get start time
+    struct timespec end_time; //get start time
 
     //insert
     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
@@ -58,10 +72,21 @@ void* thread_tasks(void *num_thread) {
                 SortedList_insert(head, &pool[i]);
                 break;
             case 'm': //mutex
+                if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
+                    fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+                    exit(1);
+                }
                 if (pthread_mutex_lock(&protect) != 0) {
                     fprintf(stderr, "Error locking mutex\n");
                     exit(1);
                 }
+                if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
+                    fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
+                    exit(1);
+                }
+
+                acquisition_time[n_thread] += get_time(&start_time, &end_time);
+
                 SortedList_insert(head, &pool[i]);
                 if (pthread_mutex_unlock(&protect) != 0) {
                     fprintf(stderr, "Error unlocking mutex\n");
@@ -89,10 +114,20 @@ void* thread_tasks(void *num_thread) {
             }
             break;
         case 'm': //mutex
+            if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
+                fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+                exit(1);
+            }
             if (pthread_mutex_lock(&protect) != 0) {
                 fprintf(stderr, "Error locking mutex\n");
                 exit(1);
             }
+            if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
+                fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
+                exit(1);
+            }
+            acquisition_time[n_thread] += get_time(&start_time, &end_time);
+
             if (SortedList_length(head) < 0) {
                 fprintf(stderr, "Error: List is corrupted\n");
                 exit(2);
@@ -133,10 +168,21 @@ void* thread_tasks(void *num_thread) {
                 }
                 break;
             case 'm': //mutex
+                if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
+                    fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+                    exit(1);
+                }
                 if (pthread_mutex_lock(&protect) != 0) {
                     fprintf(stderr, "Error locking mutex\n");
                     exit(1);
                 }
+                if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
+                    fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
+                    exit(1);
+                }
+
+                acquisition_time[n_thread] += get_time(&start_time, &end_time);
+
                 kill = SortedList_lookup(head, pool[i].key);
                 if (kill == NULL) {
                     fprintf(stderr, "Error looking up node for deletion\n");
@@ -256,6 +302,12 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    mutex_wait_time = malloc(thread_num * sizeof(long));
+    if (mutex_wait_time == NULL) {
+        fprintf(stderr, "Error initializing memory for mutex wait time array: %s\n", strerror(errno));
+        exit(1);
+    }
+
     srand(time(NULL));  
     for (int i = 0; i < thread_num * iterations; i++) { //initialize list elements with random keys
         int rand_length = (rand() % (12 - 2 + 1)) + 2;   //random key length of range 2-12
@@ -316,7 +368,7 @@ int main(int argc, char *argv[]) {
 
     struct timespec end_time;  //get end time
     if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
-        fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+        fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -361,6 +413,14 @@ int main(int argc, char *argv[]) {
             break;
     }
 
-    fprintf(stdout, "%s,%d,%d,%d,%ld,%lu,%ld\n", output, thread_num, iterations, list_num, ops, total_time_nsec, avg_time_per_op);
+    if (mutex_wait_time != NULL) {
+        for (int i = 0; i < thread_num; i++) {
+            acquisition_time += mutex_wait_time[i];
+        }
+    }
+
+    long long avg_wait_for_lock = acquisition_time / ops;
+
+    fprintf(stdout, "%s,%d,%d,%d,%ld,%lu,%ld,%lld\n", output, thread_num, iterations, list_num, ops, total_time_nsec, avg_time_per_op, avg_wait_for_lock);
     exit(0);
 }

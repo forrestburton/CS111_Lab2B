@@ -35,6 +35,6 @@ graphs: tests
 
 dist: graphs
 	tar -czvf lab2b-005324612.tar.gz SortedList.h SortedList.c lab2_list.c lab2_list.gp lab2b_list.csv lab2b_1.png lab2b_2.png lab2b_3.png lab2b_4.png lab2b_5.png README Makefile 
-	
+
 clean:
 	rm -f lab2_list *tar.gz
