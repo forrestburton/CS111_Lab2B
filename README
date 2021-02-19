@@ -71,3 +71,4 @@ Recourses:
 **Discussion 1B very helpful
 Mutex Locks - https://mortoray.com/2019/02/20/how-does-a-mutex-work-what-does-it-cost/
 Malloc vs calloc - https://stackoverflow.com/questions/1538420/difference-between-malloc-and-calloc
+strlen - https://www.programiz.com/c-programming/library-function/string.h/strlen
