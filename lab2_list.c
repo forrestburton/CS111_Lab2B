@@ -21,7 +21,7 @@ int opt_y = 0;
 int opt_sync = 0;
 int opt_yield = 0;
 pthread_mutex_t* protect = NULL;
-long spin_locks* = NULL;
+long* spin_locks = NULL;
 int* num_thread = NULL;
 int list_num = 1;
 long long acquisition_time = 0;
@@ -40,7 +40,7 @@ unsigned long get_time(struct timespec* start_time, struct timespec* end_time) {
     return (sec*1000000000 + nsec);
 }
 
-int hasher(char* key) {   //select which sub-list a particular key should be in based on a simple hash of the key, modulo the number of lists
+int hasher(const char* key) {   //select which sub-list a particular key should be in based on a simple hash of the key, modulo the number of lists
     int key_int = 0;
     int length = strlen(key);
     for (int i = 0; i < length; i++) {
@@ -66,12 +66,12 @@ void free_memory(void) {
 
     if (opt_sync == 'm' && protect != NULL) {  //destroy mutex locks
         for (int i = 0; i < list_num; i++) {
-            pthread_mutex_destroy(protect[i]);
+            pthread_mutex_destroy(&protect[i]);
         }
         free(protect);
     }
 
-    if (opt_sync = 's' && spin_locks != NULL) {
+    if (opt_sync == 's' && spin_locks != NULL) {
         free(spin_locks);
     }
 
@@ -92,21 +92,20 @@ void* thread_tasks(void *num_thread) {
     int list_to_insert;
 
     //insert
-    int j = 0;
     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
         //get list to insert from hash 
-        list_to_insert = hasher(pool[j]);
+        list_to_insert = hasher(pool[i].key);
 
         switch(opt_sync) {
             case 0:  //no sync option given
-                SortedList_insert(heads + list_num, &pool[j]);
+                SortedList_insert(&heads[list_to_insert], &pool[i]);
                 break;
             case 'm': //mutex
                 if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
                     fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
                     exit(1);
                 }
-                if (pthread_mutex_lock(protect + list_num) != 0) {
+                if (pthread_mutex_lock(&protect[list_to_insert]) != 0) {
                     fprintf(stderr, "Error locking mutex\n");
                     exit(1);
                 }
@@ -117,83 +116,90 @@ void* thread_tasks(void *num_thread) {
 
                 mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
-                SortedList_insert(heads + list_num, &pool[i]);
-                if (pthread_mutex_unlock(protect + list_num) != 0) {
+                SortedList_insert(&heads[list_to_insert], &pool[i]);
+                if (pthread_mutex_unlock(&protect[list_to_insert]) != 0) {
                     fprintf(stderr, "Error unlocking mutex\n");
                     exit(1);
                 }
                 break;
             case 's':  //spinlock
-                while (__sync_lock_test_and_set(spin_locks + list_num, 1));
-                SortedList_insert(head, &pool[i]);
-                __sync_lock_release(spin_locks + list_num);
+                while (__sync_lock_test_and_set(&spin_locks[list_to_insert], 1));
+                SortedList_insert(&heads[list_to_insert], &pool[i]);
+                __sync_lock_release(&spin_locks[list_to_insert]);
                 break;
             default: 
                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
                 exit(1);
                 break;
         }   
-        
-        j++;
     }
 
+    int tot_length = 0;
+    int length = 0;
     //check length for all lists
+    for (int i = 0; i < list_num; i++) {
+        switch(opt_sync) {
+            case 0:  //no sync option given
+                length = SortedList_length(&heads[i]);
+                if (length < 0) {
+                    fprintf(stderr, "Error: List is corrupted\n");
+                    exit(2);
+                }
+                tot_length += length; 
+                break;
+            case 'm': //mutex
+                if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
+                    fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+                    exit(1);
+                }
+                if (pthread_mutex_lock(&protect[i]) != 0) {
+                    fprintf(stderr, "Error locking mutex\n");
+                    exit(1);
+                }
+                if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
+                    fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
+                    exit(1);
+                }
+                mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
-    //check length
-    switch(opt_sync) {
-        case 0:  //no sync option given
-            if (SortedList_length(heads + list_num) < 0) {
-                fprintf(stderr, "Error: List is corrupted\n");
-                exit(2);
-            }
-            break;
-        case 'm': //mutex
-            if (clock_gettime(CLOCK_MONOTONIC, &start_time) == -1) {
-                fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
+                length = SortedList_length(&heads[i]);
+                if (length < 0) {
+                    fprintf(stderr, "Error: List is corrupted\n");
+                    exit(2);
+                }
+                tot_length += length; 
+                if (pthread_mutex_unlock(&protect[i]) != 0) {
+                    fprintf(stderr, "Error unlocking mutex\n");
+                    exit(1);
+                }
+                break;
+            case 's':  //spinlock
+                while (__sync_lock_test_and_set(&spin_locks[i], 1));
+                length = SortedList_length(&heads[i]);
+                if (length < 0) {
+                    fprintf(stderr, "Error: List is corrupted\n");
+                    exit(2);
+                }
+                tot_length += length; 
+                __sync_lock_release(&spin_locks[i]);
+                break;
+            default: 
+                fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
                 exit(1);
-            }
-            if (pthread_mutex_lock(protect + list_num) != 0) {
-                fprintf(stderr, "Error locking mutex\n");
-                exit(1);
-            }
-            if (clock_gettime(CLOCK_MONOTONIC, &end_time) == -1) {
-                fprintf(stderr, "Error getting end time: %s\n", strerror(errno));
-                exit(1);
-            }
-            mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
-
-            if (SortedList_length(heads + list_num) < 0) {
-                fprintf(stderr, "Error: List is corrupted\n");
-                exit(2);
-            }
-            if (pthread_mutex_unlock(&protect) != 0) {
-                fprintf(stderr, "Error unlocking mutex\n");
-                exit(1);
-            }
-            break;
-        case 's':  //spinlock
-            while (__sync_lock_test_and_set(&spin_lock, 1));
-            if (SortedList_length(head) < 0) {
-                fprintf(stderr, "Error: List is corrupted\n");
-                exit(2);
-            }
-            __sync_lock_release(spin_locks + list_num);
-            break;
-        default: 
-            fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
-            exit(1);
-            break;
+                break;
+        }  
     }
 
     //lookup, remove
     SortedListElement_t* kill;
+    int to_delete;
     int stop = base_index + iterations;
     for (int i = base_index; i < thread_num * iterations; i+=thread_num) {
-        //get correct lookup key from hash key
+        to_delete = hasher(pool[i].key);
         
         switch(opt_sync) {
             case 0:  //no sync option given
-                kill = SortedList_lookup(heads + list_num, pool[i].key);
+                kill = SortedList_lookup(&heads[to_delete], pool[i].key);
                 if (kill == NULL) {
                     fprintf(stderr, "Error looking up node for deletion, key is:%d, i is: %d, stop point is:%d, threads:%d, iterations:%d\n", *pool[i].key, i, stop, thread_num, iterations);
                     exit(2);
@@ -208,7 +214,7 @@ void* thread_tasks(void *num_thread) {
                     fprintf(stderr, "Error getting start time: %s\n", strerror(errno));
                     exit(1);
                 }
-                if (pthread_mutex_lock(protect + list_num) != 0) {
+                if (pthread_mutex_lock(&protect[to_delete]) != 0) {
                     fprintf(stderr, "Error locking mutex\n");
                     exit(1);
                 }
@@ -219,7 +225,7 @@ void* thread_tasks(void *num_thread) {
 
                 mutex_wait_time[n_thread] += get_time(&start_time, &end_time);
 
-                kill = SortedList_lookup(heads + list_num, pool[i].key);
+                kill = SortedList_lookup(&heads[to_delete], pool[i].key);
                 if (kill == NULL) {
                     fprintf(stderr, "Error looking up node for deletion\n");
                     exit(2);
@@ -228,14 +234,14 @@ void* thread_tasks(void *num_thread) {
                     fprintf(stderr, "Error deleting node\n");
                     exit(2);
                 }
-                if (pthread_mutex_unlock(protect + list_num) != 0) {
+                if (pthread_mutex_unlock(&protect[to_delete]) != 0) {
                     fprintf(stderr, "Error unlocking mutex\n");
                     exit(1);
                 }
                 break;
             case 's':  //spinlock
-                while (__sync_lock_test_and_set(spin_locks + list_num, 1));
-                kill = SortedList_lookup(heads + list_num, pool[i].key);
+                while (__sync_lock_test_and_set(&spin_locks[to_delete], 1));
+                kill = SortedList_lookup(&heads[to_delete], pool[i].key);
                 if (kill == NULL) {
                     fprintf(stderr, "Error looking up node for deletion\n");
                     exit(2);
@@ -244,7 +250,7 @@ void* thread_tasks(void *num_thread) {
                     fprintf(stderr, "Error deleting node\n");
                     exit(2);
                 }
-                __sync_lock_release(spin_locks + list_num);
+                __sync_lock_release(&spin_locks[to_delete]);
                 break;
             default: 
                 fprintf(stderr, "Incorrect argument for sync, accepted are ['m', 's'] \n");
@@ -320,7 +326,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'l':
-                list_num = optarg[0];
+                list_num = atoi(optarg);
                 if (list_num <= 0) {
                     fprintf(stderr, "Incorrect argument for --lists, number must be greater than 0 \n");
                     exit(1);
@@ -439,7 +445,7 @@ int main(int argc, char *argv[]) {
     }
 
     for (int i = 0; i < list_num; i++) {
-        if (SortedList_length(&head[i]) != 0) {
+        if (SortedList_length(&heads[i]) != 0) {
             fprintf(stderr, "\n");
             exit(1);
         }   

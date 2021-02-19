@@ -1,7 +1,7 @@
 NAME: Forrest Burton
 EMAIL: burton.forrest10@gmail.com
 ID: 005324612
-SLIPDAYS: 0
+SLIPDAYS: 2
 
 QUESTION 2.3.1 - Cycles in the basic list implementation:
 Where do you believe most of the cycles are spent in the 1 and 2-thread list tests ?
